@@ -253,7 +253,7 @@
        (call-with-values (lambda () (tcp-connect host puerto))
                          (lambda (in out)
                            (escribir-a-erlang (construir-mensaje puntos pob) out)
-                           (bucle-espera-evaluacion in out pob puntos 0 0 0 5))))
+                           (bucle-espera-evaluacion in out pob puntos 0 0 0 10))))
      (generar-poblacion tamano-pob))))
 
 ; Dominio: una lista de listas que contiene tres números
