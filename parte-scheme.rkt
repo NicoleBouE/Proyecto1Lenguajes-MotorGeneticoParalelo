@@ -39,8 +39,8 @@
 ; Codominio: subárbol (lista de 3 elementos) o atómico (número o símbolo)
 (define generar-subarbol
   (lambda (Lado Raiz rand)
-    (cond ((and (equal? Lado 'der) (< rand 70)) (revisar-cero-division Raiz (elegir-letra-num (random 151))))
-          ((and (equal? Lado 'izq) (< rand 70)) (elegir-letra-num (random 151)))
+    (cond ((and (equal? Lado 'der) (< rand 55)) (revisar-cero-division Raiz (elegir-letra-num (random 151))))
+          ((and (equal? Lado 'izq) (< rand 55)) (elegir-letra-num (random 151)))
           (else (generar-subarbol-aux Lado Raiz (elegir-operacion (random 101)))))))
 
 ; Dominio: Operacion (lista con operador en car y dos listas vacías)
@@ -52,7 +52,7 @@
           (generar-subarbol 'der (car Operacion) (random 101)))))
 
 ; Dominio: n (número natural)
-; Codominio: lista de n individuos (población)
+; Codominio: lista de n individuos árboles sintácticos (población)
 (define generar-poblacion
   (lambda (n)
     (cond ((zero? n) '())
@@ -72,8 +72,8 @@
 ; Codominio: subárbol (lista) o atómico (número o símbolo)
 (define escoger-hijo
   (lambda (Padre rand)
-    (cond ((< rand 2) (generar-individuo (elegir-operacion (random 101))))
-          ((< rand 51) (cadr Padre))
+    (cond ((< rand 20) (generar-individuo (elegir-operacion (random 101))))
+          ((< rand 60) (cadr Padre))
           (else (caddr Padre)))))
 
 ; Dominio: Raiz (lista), Padre1 (lista), Padre2 (lista), rand (número natural 0-100)
@@ -140,24 +140,25 @@
                               (seleccionar-padre-torneo poblacion-fitness k))
                       (evolucionar-poblacion poblacion-fitness (- n 1) k))))))
 
-; Dominio: resultados-evaluados (lista de pares), in (puerto), out (puerto), 
-;         puntos (lista), generacion (natural), mejor-f (real), contador (natural), limite (natural)
+; Dominio: resultados-evaluados (lista de pares), in (puerto), out (puerto), puntos (lista), generacion (natural), mejor-f (real), contador (natural), limite (natural)
 ; Codominio: void (efecto: ejecuta ciclo evolutivo)
 (define ejecutar-ciclo-evolutivo
   (lambda (resultados-evaluados in out puntos generacion mejor-f contador limite)
     ((lambda (mejor-actual)
-       (displayln (format "Generación ~a | Mejor Fitness: ~a" generacion (car mejor-actual)))
+       (displayln (format "Generación ~a - Mejor Fitness: ~a" generacion (car mejor-actual)))
        (displayln (format "Mejor Árbol: ~a" (cdr mejor-actual)))
        (cond 
-         ; Condición de parada: Fitness perfecto o estancamiento
          ((or (>= (car mejor-actual) 0.99) (>= contador limite))
           (displayln "SISTEMA FINALIZADO.")
           (close-output-port out))
          (else
           ((lambda (nuevo-mejor-f nuevo-contador)
-             ; MANDAR NUEVA POBLACIÓN A ERLANG
-             (escribir-a-erlang (construir-mensaje puntos (evolucionar-poblacion resultados-evaluados (length resultados-evaluados) 3)) out)
-             ; Volver al bucle de escucha para la siguiente generación
+             (escribir-a-erlang 
+              (construir-mensaje puntos 
+                                 (cons (cdr mejor-actual) 
+                                       (evolucionar-poblacion resultados-evaluados 
+                                                              (- (length resultados-evaluados) 1) 15))) 
+              out)
              (bucle-espera-evaluacion in out '() puntos (+ generacion 1) nuevo-mejor-f nuevo-contador limite))
            (cond ((> (car mejor-actual) mejor-f) (car mejor-actual)) (else mejor-f))
            (cond ((> (car mejor-actual) mejor-f) 0) (else (+ contador 1)))))))
@@ -167,16 +168,18 @@
 
 ; Dominio: mensaje (lista con estructura de resultados)
 ; Codominio: lista de pares (fitness . árbol)
-(define (procesar-resultados mensaje)
-  (map (lambda (item) (cons (car item) (cdr item))) (cadr mensaje)))
+(define procesar-resultados 
+  (lambda (mensaje)
+    (map (lambda (item) (cons (car item) (cdr item))) (cadr mensaje))))
 
 ; Dominio: Arbol (número, símbolo o lista)
-; Codominio: string con representación del árbol en notación Lisp
-(define (formatear-arbol Arbol)
-  (cond ((number? Arbol) (number->string Arbol))
-        ((symbol? Arbol) (symbol->string Arbol))
-        ((list? Arbol) (string-append "(" (string-join (map formatear-arbol Arbol) " ") ")"))
-        (else "0")))
+; Codominio: string con representación del árbol
+(define formatear-arbol 
+  (lambda(Arbol)
+    (cond ((number? Arbol) (number->string Arbol))
+          ((symbol? Arbol) (symbol->string Arbol))
+          ((list? Arbol) (string-append "(" (string-join (map formatear-arbol Arbol) " ") ")"))
+          (else "0"))))
 
 ; Dominio: Puntos (lista de puntos (x y z)), Poblacion (lista de árboles)
 ; Codominio: string con formato para enviar a Erlang
@@ -253,5 +256,18 @@
                            (bucle-espera-evaluacion in out pob puntos 0 0 0 5))))
      (generar-poblacion tamano-pob))))
 
-; Ejemplo de inicio
-; (iniciar-sistema-evolutivo "localhost" 8001 '((1 2 3) (4 5 10)) 10)
+; Dominio: una lista de listas que contiene tres números
+; Codominio: void
+(define resolver-puntos
+  (lambda (puntos)
+    ((lambda (host puerto)
+       ((lambda (n-puntos)
+          ((lambda (tamano-dinamico)
+             (displayln "---------------------------------------")
+             (displayln (format "Puntos recibidos: ~a" n-puntos))
+             (displayln (format "Población asignada: ~a" tamano-dinamico))
+             (displayln "---------------------------------------")
+             (iniciar-sistema-evolutivo host puerto puntos tamano-dinamico))
+           (max 50 (inexact->exact (ceiling (sqrt n-puntos))))))
+        (length puntos)))
+     "localhost" 8000)))
